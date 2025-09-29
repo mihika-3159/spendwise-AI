@@ -1,4 +1,4 @@
-from transformers import pipeline
+import transformers
 
 def generate_tip(user_spending_summary: str) -> str:
     """
@@ -10,7 +10,7 @@ def generate_tip(user_spending_summary: str) -> str:
     Returns:
         str: An AI-generated money tip.
     """
-    generator = pipeline("text-generation", model="gpt2")
+    generator = transformers.pipeline("text-generation", model="gpt2")
     prompt = (
         "Based on the following spending summary, give a concise daily money-saving tip:\n"
         f"{user_spending_summary}\nTip:"
