@@ -2,29 +2,12 @@ import csv
 import os
 import datetime
 import streamlit as st
+from utils.data_utils import read_users, write_user
+from utils.tips import generate_tip
+from utils import CATEGORIES
+from utils import get_ai_suggestion
 
 USERS_CSV = "users.csv"
-CATEGORIES = ["Food", "Transport", "Entertainment", "Utilities", "Other"]
-
-def read_users():
-    users = {}
-    if os.path.exists(USERS_CSV):
-        with open(USERS_CSV, newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                users[row['username']] = row
-    return users
-
-def write_user(user):
-    users = read_users()
-    users[user['username']] = user
-    with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
-        fieldnames = ['username', 'password', 'purpose', 'goal']
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for u in users.values():
-            writer.writerow(u)
-
 def get_expenses(username):
     expenses = []
     expenses_file = f"{username}_expenses.csv"
@@ -49,60 +32,24 @@ def log_expense(username, date, category, amount, description):
             'amount': amount,
             'description': description
         })
-
-def streamlit_main():
-    st.set_page_config(page_title="SpendWise - Financial Coach", layout="centered")
-    st.title("SpendWise - Financial Coach")
-
-    # Session state for user
-    if 'current_user' not in st.session_state:
-        st.session_state.current_user = None
-
-    def login_ui():
-        st.subheader("Login")
-        username = st.text_input("Username", key="login_username")
-        password = st.text_input("Password", type="password", key="login_password")
-        if st.button("Login"):
-            users = read_users()
-            if username in users and users[username]['password'] == password:
-                st.session_state.current_user = users[username]
-                st.success("Login successful!")
-                st.experimental_rerun()
-            else:
-                st.error("Invalid credentials")
-        if st.button("Go to Register"):
-            st.session_state.page = "register"
-            st.experimental_rerun()
-
-    def register_ui():
-        st.subheader("Register")
-        username = st.text_input("Username", key="reg_username")
-        password = st.text_input("Password", type="password", key="reg_password")
-        purpose = st.text_input("Purpose of using this app", key="reg_purpose")
-        goal = st.text_input("Goal savings per month", key="reg_goal")
-        if st.button("Register"):
-            users = read_users()
-            if username in users:
-                st.error("Username already exists")
-                return
-            if not username or not password or not purpose or not goal.isdigit():
-                st.error("Please fill all fields correctly")
-                return
-            user = {
+    def log_feedback(username, date, tip_text, feedback):
+        feedback_file = "feedback.csv"
+        file_exists = os.path.exists(feedback_file)
+        with open(feedback_file, 'a', newline='', encoding='utf-8') as f:
+            fieldnames = ['username', 'date', 'tip_text', 'feedback']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow({
                 'username': username,
-                'password': password,
-                'purpose': purpose,
-                'goal': goal
-            }
-            write_user(user)
-            st.success("Registration successful! Please login.")
-            st.session_state.page = "login"
-            st.experimental_rerun()
-        if st.button("Back to Login"):
-            st.session_state.page = "login"
-            st.experimental_rerun()
+                'date': date,
+                'tip_text': tip_text,
+                'feedback': feedback
+            })
 
-    def main_ui():
+    # Patch main_ui to add AI Tip of the Day
+    # --- AI Tip of the Day section patch ---
+    def main_ui_with_ai_tip():
         user = st.session_state.current_user
         st.header(f"Welcome, {user['username']}! Goal: ${user['goal']}/month")
         if st.button("Logout"):
@@ -189,15 +136,23 @@ def streamlit_main():
                 if amt == 0:
                     st.write(f"Try to log your {cat} expenses for better tracking.")
 
-    # Page routing
-    if 'page' not in st.session_state:
-        st.session_state.page = "login"
-    if st.session_state.current_user:
-        main_ui()
-    elif st.session_state.page == "register":
-        register_ui()
-    else:
-        login_ui()
+        st.subheader("💡 Daily Money Tip")
+        tip = generate_tip()
+        st.info(tip)
 
-if __name__ == "__main__":
-    streamlit_main()
+        st.subheader("🤖 AI Tip of the Day")
+        with st.spinner("Fetching AI tip..."):
+            ai_tip = get_ai_suggestion()
+        st.info(ai_tip)
+        col1, col2 = st.columns(2)
+        now = datetime.date.today().isoformat()
+        if col1.button("👍", key="ai_tip_upvote"):
+            log_feedback(user['username'], now, ai_tip, "up")
+            st.success("Thanks for your feedback!")
+        if col2.button("👎", key="ai_tip_downvote"):
+            log_feedback(user['username'], now, ai_tip, "down")
+            st.success("Thanks for your feedback!")
+
+    # Replace main_ui with the patched version
+    # Call the patched main_ui directly
+    main_ui_with_ai_tip()
