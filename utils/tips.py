@@ -1,20 +1,21 @@
-import transformers
+# utils/tips.py
+import random
+from .ai_helper import get_ai_suggestion
 
-def generate_tip(user_spending_summary: str) -> str:
-    """
-    Generate an AI-based daily money tip based on the user's spending summary.
+_TIPS = [
+    "Pack a lunch twice a week and track the money you saved.",
+    "Set automatic transfers to savings right after payday.",
+    "Cancel one subscription you don’t use regularly.",
+    "Use cash for discretionary spending to feel the impact.",
+    "Compare prices and wait 48 hours before large purchases."
+]
 
-    Args:
-        user_spending_summary (str): A summary of the user's recent spending.
-
-    Returns:
-        str: An AI-generated money tip.
-    """
-    generator = transformers.pipeline("text-generation", model="gpt2")
-    prompt = (
-        "Based on the following spending summary, give a concise daily money-saving tip:\n"
-        f"{user_spending_summary}\nTip:"
-    )
-    result = generator(prompt, max_length=60, num_return_sequences=1)
-    tip = result[0]['generated_text'].split("Tip:")[-1].strip().split('\n')[0]
-    return tip
+def generate_tip() -> str:
+    try:
+        prompt = "Give one practical, single-sentence personal finance tip."
+        ai_text = get_ai_suggestion(prompt, max_tokens=40, fallback=True)
+        if ai_text and len(ai_text.strip()) > 10:
+            return ai_text.strip()
+    except Exception:
+        pass
+    return random.choice(_TIPS)

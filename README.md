@@ -1,23 +1,26 @@
-# 💸 SpendWise – Your Personal AI Financial Coach
+# 💸 Spendwise – AI-Powered Smart Expense Tracker
 
-SpendWise is a simple yet powerful web app built with **Python + Streamlit** that helps users take control of their personal finances.  
-It uses free AI models to give users daily money tips, categorize their expenses, and suggest better spending habits.
-
----
-
-## 🚀 Features
-- **Expense Tracking** – Log daily expenses in a clean and simple interface  
-- **AI-Powered Advice** – Get smart tips for saving money based on your spending  
-- **Visual Insights** – View your spending trends in easy-to-read charts  
-- **Daily Nudges** – Bite-sized, actionable advice to build better financial habits  
+Spendwise is a simple but powerful **personal finance app** built with **Streamlit**.  
+It lets you **log expenses, visualize spending, set goals, and get AI-powered money-saving tips** using Hugging Face’s free LLMs.
 
 ---
 
-## 🛠️ Tech Stack
-- **Frontend:** Streamlit (Python-based web framework)  
-- **Backend:** Python, Pandas  
-- **AI:** HuggingFace free models for text generation  
-- **Version Control:** Git + GitHub  
+## ✨ Features
+- 🔑 **Secure login & registration** (password hashing, stored in CSV)
+- 📝 **Expense logging** with category, date, amount, description
+- 📊 **Analytics dashboard**: monthly totals, goal tracking, bar & pie charts
+- 💡 **AI Tips**: Hugging Face LLM suggests money-saving strategies (with caching & fallback)
+- ⬇️ **Download CSV**: export your expenses
+- 👨‍💻 **Demo user included** (`demo/demo123`)
+- 🔒 **Security**: hashed passwords, `.env` for API keys, `.gitignore` for sensitive files
+
+---
+
+## 🛠 Tech Stack
+- **Frontend:** [Streamlit](https://streamlit.io)  
+- **Backend:** Python (`utils/` for data + AI helpers)  
+- **AI:** Hugging Face Inference API (default: `google/flan-t5-base`)  
+- **Data:** CSV persistence (per-user expenses)  
 
 ---
 

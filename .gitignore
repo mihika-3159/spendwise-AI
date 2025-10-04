@@ -10,3 +10,5 @@ __pycache__/
 .cscode/
 Thumbs.db
 .streamlit/
+data/
+outputs/
