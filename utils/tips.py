@@ -1,21 +1,25 @@
 # utils/tips.py
-import random
 from .ai_helper import get_ai_suggestion
+import pandas as pd
+from .data_utils import expenses_df
 
-_TIPS = [
-    "Pack a lunch twice a week and track the money you saved.",
-    "Set automatic transfers to savings right after payday.",
-    "Cancel one subscription you don’t use regularly.",
-    "Use cash for discretionary spending to feel the impact.",
-    "Compare prices and wait 48 hours before large purchases."
-]
+def get_ai_tip(username: str) -> str:
+    """Generate AI-based financial tip based on user's recent expenses."""
+    df = expenses_df(username)
+    prompt = "You are a friendly personal finance coach. Give one short, actionable money-saving tip."
+
+    if not df.empty:
+        last_30 = df[df['date'] >= (pd.Timestamp.today().date() - pd.Timedelta(days=30))]
+        if not last_30.empty:
+            top = last_30.groupby('category')['amount'].sum().sort_values(ascending=False).head(3)
+            context = ", ".join([f"{cat}: ${val:.0f}" for cat, val in top.items()])
+        else:
+            context = "No recent expenses recorded."
+    else:
+        context = "No expenses logged yet."
+
+    return get_ai_suggestion(prompt, context=context)
 
 def generate_tip() -> str:
-    try:
-        prompt = "Give one practical, single-sentence personal finance tip."
-        ai_text = get_ai_suggestion(prompt, max_tokens=40, fallback=True)
-        if ai_text and len(ai_text.strip()) > 10:
-            return ai_text.strip()
-    except Exception:
-        pass
-    return random.choice(_TIPS)
+    """Fallback tip when AI is unavailable."""
+    return "Track your spending for one week and identify the top non-essential category to cut."

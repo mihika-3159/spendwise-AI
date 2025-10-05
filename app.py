@@ -1,243 +1,377 @@
 # app.py
-import datetime
+import os
+import secrets
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from io import BytesIO
+from dotenv import load_dotenv
+import smtplib
+from email.message import EmailMessage
 
 from utils.data_utils import (
     read_users, write_user, verify_user_credentials, get_user_role,
+    is_user_activated, set_user_activation, get_activation_code,
     log_expense, expenses_df, totals_by_category, total_spent_month,
     write_feedback, read_feedback
 )
-from utils.tips import generate_tip
-from utils import CATEGORIES
+from utils.tips import get_ai_tip, generate_tip
+from utils.config import CATEGORIES
+
+load_dotenv()
+
+# SMTP config (optional)
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587") or 587)
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASS = os.getenv("SMTP_PASS", "")
+FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
 
 st.set_page_config(page_title="Spendwise", page_icon="💸", layout="centered")
 
-# -------------------------
-# Authentication UI
-# -------------------------
-def login_register_ui():
-    st.title("💸 Spendwise - Smart Expense Tracker")
-    st.write("Track expenses, set goals, get AI tips, and give feedback.")
-    menu = ["Login", "Register", "Demo Seed"]
-    choice = st.sidebar.selectbox("Menu", menu)
+# ---- UI helpers ----
+def send_activation_email(to_email: str, username: str, activation_code: str):
+    if not (SMTP_HOST and SMTP_USER and SMTP_PASS):
+        return False, "SMTP not configured"
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = 'Spendwise - Activate your account'
+        msg['From'] = FROM_EMAIL
+        msg['To'] = to_email
+        msg.set_content(f"Hi {username},\n\nYour Spendwise activation code is: {activation_code}\n\nEnter this code in the app to activate your account.")
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        return True, "Email sent"
+    except Exception as e:
+        return False, str(e)
 
-    if choice == "Login":
-        st.subheader("Login to your account")
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        if st.button("Login"):
-            if verify_user_credentials(username, password):
-                st.session_state["user"] = username
-                st.success(f"Welcome back, {username}!")
+def generate_activation_code():
+    return secrets.token_hex(3)
+
+def strong_password_ok(password: str):
+    if len(password) < 8:
+        return False, "At least 8 characters required."
+    if password.lower() == password:
+        return False, "Include an uppercase letter."
+    if password.upper() == password:
+        return False, "Include a lowercase letter."
+    if not any(c.isdigit() for c in password):
+        return False, "Include a number."
+    return True, ""
+
+def login_and_reload(username: str):
+    st.session_state['user'] = username
+    st.session_state['role'] = get_user_role(username)
+    st.rerun()
+
+def logout_and_reload():
+    st.session_state.pop('user', None)
+    st.session_state.pop('role', None)
+    st.rerun()
+
+# ---- Auth pages ----
+def login_page():
+    st.title("💸 Spendwise — Login")
+    st.write("Smart tracking, personalized AI tips.")
+
+    username = st.text_input("Username", key="login_user")
+    password = st.text_input("Password", type="password", key="login_pass")
+
+    if st.button("Login", key="login_btn"):
+        users = read_users()
+
+        # Demo shortcut
+        if username == "demo" and password == "demo123":
+            if username in users:
+                login_and_reload(username)
             else:
-                st.error("Invalid username or password.")
+                st.error("Demo account missing. Run demo_fixtures.py.")
+            return
 
-    elif choice == "Register":
-        st.subheader("Create a new account")
-        username = st.text_input("Choose a username", key="reg_username")
-        password = st.text_input("Choose a password", type="password", key="reg_password")
-        purpose = st.text_input("What is your financial goal?", key="reg_purpose")
-        goal = st.number_input("Monthly saving goal ($)", min_value=0.0, value=0.0, key="reg_goal")
-        if st.button("Register"):
-            users = read_users()
-            if not username:
-                st.warning("Please enter a username.")
-            elif username in users:
-                st.warning("Username already exists.")
+        # Admin shortcut
+        if username == "admin" and password == "admin123":
+            if username in users:
+                login_and_reload(username)
             else:
-                write_user({
-                    "username": username,
-                    "password": password,
-                    "purpose": purpose,
-                    "goal": goal,
-                    "role": "user"
-                })
-                st.success("Account created successfully! Please log in.")
+                st.error("Admin account missing. Run demo_fixtures.py.")
+            return
 
-    elif choice == "Demo Seed":
-        st.subheader("Seed Demo Data")
-        st.write("Click to seed demo user and sample data (demo/demo123, admin/admin123).")
-        if st.button("Seed Demo Data"):
-            try:
-                import demo_fixtures
-                demo_fixtures.seed_demo()
-                st.success("Demo data seeded. Use demo/demo123 to login or admin/admin123 to view feedback.")
-            except Exception as e:
-                st.error(f"Error seeding demo data: {e}")
+        # Normal users
+        if username not in users:
+            st.error("User not found. Please register.")
+            return
 
-# -------------------------
-# Expense UI
-# -------------------------
-def expense_ui(username):
-    st.header("Log Expenses")
-    date = st.date_input("Date", datetime.date.today())
-    category = st.selectbox("Category", CATEGORIES)
-    amount = st.number_input("Amount ($)", min_value=0.0, step=0.01)
-    description = st.text_input("Description")
-    if st.button("Add Expense"):
+        if not is_user_activated(username):
+            st.warning("Account not activated. Activate from email.")
+            return
+
+        if verify_user_credentials(username, password):
+            login_and_reload(username)
+        else:
+            st.error("Invalid credentials.")
+
+def register_page():
+    st.header("Register")
+    username = st.text_input("Choose username", key="reg_user")
+    email = st.text_input("Email (for activation)", key="reg_email")
+    password = st.text_input("Choose password", type="password", key="reg_pass")
+    purpose = st.text_input("Short purpose / goal (optional)", key="reg_purpose")
+    goal = st.number_input("Monthly saving goal ($)", min_value=0.0, value=0.0, key="reg_goal")
+    if st.button("Create account", key="reg_btn"):
+        if not username or not email or not password:
+            st.error("Username, email and password required.")
+            return
+        users = read_users()
+        if username in users:
+            st.error("Username exists.")
+            return
+        ok, reason = strong_password_ok(password)
+        if not ok:
+            st.error(f"Weak password: {reason}")
+            return
+        activation_code = generate_activation_code()
+        write_user({
+            "username": username,
+            "password": password,
+            "purpose": purpose,
+            "goal": goal,
+            "role": "user",
+            "activated": False,
+            "activation_code": activation_code,
+            "email": email
+        })
+        ok_email, msg = send_activation_email(email, username, activation_code)
+        if ok_email:
+            st.success("Account created. Activation code sent to your email.")
+        else:
+            st.warning(f"Account created but failed to send email: {msg}. Activation code: {activation_code}")
+        # set session pending activation so app redirects to activation page
+        st.session_state['pending_activation'] = username
+    st.rerun()
+
+def activation_page():
+    st.header("Activate your account")
+    pending = st.session_state.get('pending_activation', '')
+    st.write(f"Activating: **{pending}**")
+    code = st.text_input("Enter activation code", key="act_code")
+    if st.button("Activate", key="act_btn"):
+        expected = get_activation_code(pending)
+        if code.strip() and expected and code.strip() == expected:
+            set_user_activation(pending, True)
+            st.success("Activated! Please login now.")
+            st.session_state.pop('pending_activation', None)
+            st.rerun()
+        else:
+            st.error("Invalid code. Check your email or the activation code shown in the app (for testing).")
+
+# ---- Core app parts (post-login) ----
+def topbar(username: str):
+    c1, c2 = st.columns([10,1])
+    with c1:
+        st.markdown(f"**Logged in as:** `{username}`")
+    with c2:
+        if st.button("🔒 Logout", key="logout_btn"):
+            logout_and_reload()
+
+def profile_page(username: str):
+    st.header("Profile & Goal")
+    users = read_users()
+    u = users.get(username, {})
+    st.write(f"**Purpose:** {u.get('purpose','')}")
+    st.write(f"**Email:** {u.get('email','')}")
+    curr_goal = float(u.get('goal',0.0))
+    st.write(f"**Current monthly goal:** ${curr_goal:.2f}")
+    new_goal = st.number_input("Change monthly saving goal", min_value=0.0, value=curr_goal, step=10.0, key=f"goal_{username}")
+    if st.button("Save goal", key=f"save_goal_{username}"):
+        u['goal'] = float(new_goal)
+        write_user(u)
+        st.success("Goal updated.")
+    st.rerun()
+
+def expenses_page(username: str):
+    st.header("Log Expense")
+    date = st.date_input("Date", value=pd.Timestamp.today().date(), key=f"date_{username}")
+    category = st.selectbox("Category", CATEGORIES, key=f"cat_{username}")
+    amount = st.number_input("Amount ($)", min_value=0.0, step=0.01, key=f"amt_{username}")
+    desc = st.text_input("Description", key=f"desc_{username}")
+    if st.button("Add Expense", key=f"add_{username}"):
         try:
-            log_expense(username, str(date), category, amount, description)
-            st.success("Expense logged!")
+            log_expense(username, str(date), category, float(amount), desc)
+            st.success("Logged.")
+            st.rerun()
         except Exception as e:
-            st.error(f"Failed to log expense: {e}")
-
+            st.error(f"Failed: {e}")
     st.markdown("---")
-    st.subheader("Your Expenses")
     df = expenses_df(username)
     if df.empty:
-        st.info("No expenses yet. Add one above to see analytics.")
+        st.info("No expenses yet.")
     else:
+        st.subheader("Your expenses")
         st.dataframe(df)
-
-        # Export CSV
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("⬇ Download expenses CSV", data=csv, file_name=f"{username}_expenses.csv", mime="text/csv")
-
-        # Quick stats
-        st.subheader("Analytics")
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("⬇ Export expenses CSV", data=csv, file_name=f"{username}_expenses.csv", mime="text/csv")
+        # analytics
         month_start = pd.Timestamp.today().replace(day=1).date()
-        total_month = total_spent_month(username, month_start)
+        total = total_spent_month(username, month_start)
         users = read_users()
-        goal = float(users.get(username, {}).get("goal", 0.0))
-
-        col1, col2 = st.columns(2)
-        col1.metric("Total spent this month", f"${total_month:.2f}")
-        col2.metric("Saving goal", f"${goal:.2f}")
-
-        if goal > 0:
-            if total_month <= goal:
-                st.success("🎉 You are within your goal!")
-            else:
-                st.warning("⚠ You exceeded your monthly goal.")
-
-        # Graphs
-        if st.button("Show Graphs"):
+        goal = float(users.get(username, {}).get('goal',0.0))
+        c1,c2 = st.columns(2)
+        c1.metric("Spent this month", f"${total:.2f}")
+        c2.metric("Goal", f"${goal:.2f}")
+        if st.button("Show graphs", key=f"graphs_{username}"):
             totals = totals_by_category(username, since_date=month_start)
             if totals:
-                cats = list(totals.keys())
-                vals = [totals[k] for k in cats]
-
-                col1, col2 = st.columns(2)
-
+                cats = list(totals.keys()); vals = [totals[k] for k in cats]
+                col1,col2 = st.columns(2)
                 with col1:
                     fig, ax = plt.subplots(figsize=(5,3))
                     ax.bar(cats, vals)
-                    ax.set_ylabel("Amount")
-                    ax.set_title("Spending by Category (this month)")
+                    ax.set_title("Spending by category (this month)")
                     plt.xticks(rotation=30)
                     st.pyplot(fig)
-
                 with col2:
                     fig2, ax2 = plt.subplots(figsize=(4,4))
                     ax2.pie(vals, labels=cats, autopct="%1.1f%%", startangle=90)
-                    ax2.set_title("Spending Distribution")
+                    ax2.set_title("Spending distribution")
                     st.pyplot(fig2)
             else:
-                st.info("No category totals for this month yet.")
+                st.info("No data for graphs.")
 
-# -------------------------
-# AI Tip UI
-# -------------------------
-def tip_ui():
-    st.header("AI Money-Saving Tip")
-    st.write("Hugging Face model suggests quick, practical tips. Uses caching + fallback.")
-    if st.button("Get Today's Tip"):
-        tip = generate_tip()
-        st.info(tip)
+from utils.tips import get_ai_tip
 
-# -------------------------
-# Feedback UI
-# -------------------------
-def feedback_ui(username):
-    st.header("Give Feedback")
-    st.write("Tell us what you liked, what to improve, or report bugs. Your feedback helps us improve!")
-    with st.form("feedback_form", clear_on_submit=True):
-        rating = st.slider("Rating (1 = worst, 5 = best)", min_value=1, max_value=5, value=5)
-        feedback_text = st.text_area("Your feedback", placeholder="I liked the AI tips, but wish for dark mode...")
-        submitted = st.form_submit_button("Submit Feedback")
+def tips_page(username: str):
+    st.header("💡 Personalized AI Tip")
+    st.write("Get a short, practical money-saving suggestion based on your last 30 days of spending.")
+
+    if st.button("✨ Get Personalized Tip", key=f"tip_{username}"):
+        with st.spinner("Thinking..."):
+            try:
+                tip = get_ai_tip(username)
+                if "AI unavailable" in tip or "Error" in tip:
+                    st.warning("⚠️ AI unavailable, showing fallback tip.")
+                    st.success(generate_tip())
+                else:
+                    st.success(tip)
+            except Exception as e:
+                st.error(f"Failed to fetch tip: {e}")
+                st.success(generate_tip())
+
+def feedback_page(username: str):
+    st.header("Send feedback")
+    with st.form("fb_form", clear_on_submit=True):
+        rating = st.slider("Rating (1-5)", min_value=1, max_value=5, value=5)
+        text = st.text_area("Your feedback")
+        submitted = st.form_submit_button("Submit")
         if submitted:
-            if not feedback_text.strip():
-                st.warning("Please enter some feedback text before submitting.")
+            if not text.strip():
+                st.warning("Enter feedback text.")
             else:
-                try:
-                    write_feedback(username, feedback_text.strip(), rating)
-                    st.success("Thanks for your feedback! ❤️")
-                except Exception as e:
-                    st.error(f"Failed to save feedback: {e}")
+                write_feedback(username, text.strip(), rating)
+                st.success("Thanks for your feedback!")
 
-# -------------------------
-# Admin Feedback Viewer
-# -------------------------
 def admin_feedback_view():
-    st.header("Admin: View Feedback")
+    st.header("Admin - Feedback")
     rows = read_feedback()
     if not rows:
-        st.info("No feedback submitted yet.")
+        st.info("No feedback yet.")
         return
     df = pd.DataFrame(rows)
-    # convert rating to int
-    if 'rating' in df.columns:
-        df['rating'] = df['rating'].astype(int)
-    st.dataframe(df.sort_values('timestamp', ascending=False))
+    if 'timestamp' not in df.columns:
+        df['timestamp'] = ""
+    try:
+        df['ts'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        df = df.sort_values('ts', ascending=False)
+    except Exception:
+        pass
+    st.dataframe(df.drop(columns=['ts'], errors='ignore'))
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button("⬇ Export feedback CSV", data=csv, file_name="feedback.csv", mime="text/csv")
 
-    # Basic stats
-    st.subheader("Feedback Summary")
-    avg_rating = df['rating'].mean() if 'rating' in df.columns else None
-    count = len(df)
-    col1, col2 = st.columns(2)
-    col1.metric("Total feedback entries", count)
-    if avg_rating is not None:
-        col2.metric("Average rating", f"{avg_rating:.2f}")
+def admin_users_view():
+    st.header("Admin - Users")
+    users = read_users()
+    df = pd.DataFrame([u for u in users.values()])
+    st.dataframe(df)
+    # export
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button("⬇ Export users CSV", data=csv, file_name="users.csv", mime="text/csv")
 
-    # Export feedback CSV
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇ Download feedback CSV", data=csv, file_name="feedback.csv", mime="text/csv")
-
-# -------------------------
-# Main
-# -------------------------
+# ---- Main behavior ----
 def main():
-    if "user" not in st.session_state:
-        login_register_ui()
-    else:
-        username = st.session_state["user"]
-        role = get_user_role(username)
-        st.sidebar.success(f"Logged in as {username} ({role})")
-        menu = ["Home", "Log Expense", "AI Tip", "Feedback", "Logout"]
-        # Admin gets extra option
-        if role == "admin":
-            menu.insert(4, "Admin: Feedback View")
+    # seed demo users if no users exist (only on first run)
+    if not read_users():
+        try:
+            import demo_fixtures
+            demo_fixtures.seed_demo()
+        except Exception:
+            pass
 
-        choice = st.sidebar.radio("Navigation", menu)
+    # --- Auth flow ---
+    if 'user' not in st.session_state and 'pending_activation' not in st.session_state:
+        # hide sidebar on login/register
+        st.sidebar.empty()
+        login_page()
+        st.markdown("---")
+        st.header("Register")
+        register_page()
+        return
 
-        if choice == "Home":
-            st.title("Spendwise Dashboard")
-            st.write("Welcome! Use the sidebar to navigate.")
-            # quick snapshot
-            df = expenses_df(username)
-            if not df.empty:
-                recent = df.sort_values(by='date', ascending=False).head(5)
-                st.subheader("Recent expenses")
-                st.table(recent)
-            else:
-                st.info("No expenses yet. Log one from 'Log Expense'.")
+    elif 'pending_activation' in st.session_state:
+        st.sidebar.empty()
+        activation_page()
+        return
 
-        elif choice == "Log Expense":
-            expense_ui(username)
-        elif choice == "AI Tip":
-            tip_ui()
-        elif choice == "Feedback":
-            feedback_ui(username)
-        elif choice == "Logout":
-            st.session_state.pop("user", None)
-            st.info("Logged out successfully.")
-        elif choice == "Admin: Feedback View" and role == "admin":
-            admin_feedback_view()
+    # --- Logged in ---
+    username = st.session_state['user']
+    role = st.session_state.get('role', get_user_role(username))
+    topbar(username)
+
+    # Sidebar only appears when logged in
+    nav_items = {
+        "Home": "🏠 Home",
+        "Log Expense": "➕ Log Expense",
+        "AI Tip": "💡 AI Tip",
+        "Feedback": "✉️ Feedback",
+        "Profile": "⚙️ Profile"
+    }
+
+    if role == 'admin':
+        nav_items.update({
+            "Admin Feedback": "🗂️ Admin Feedback",
+            "Admin Users": "👥 Admin Users"
+        })
+
+    choice = st.sidebar.radio("Navigate", list(nav_items.values()))
+    selected_page = [k for k, v in nav_items.items() if v == choice][0]
+
+    # --- Routing ---
+    if selected_page == "Home":
+        st.title("Spendwise Dashboard")
+        df = expenses_df(username)
+        if df.empty:
+            st.info("No expenses — add one.")
         else:
-            st.info("Select an option from the sidebar.")
+            st.subheader("Recent expenses")
+            st.dataframe(df.sort_values(by='date', ascending=False).head(5))
+
+    elif selected_page == "Log Expense":
+        expenses_page(username)
+
+    elif selected_page == "AI Tip":
+        tips_page(username)
+
+    elif selected_page == "Feedback":
+        feedback_page(username)
+
+    elif selected_page == "Profile":
+        profile_page(username)
+
+    elif selected_page == "Admin Feedback" and role == 'admin':
+        admin_feedback_view()
+
+    elif selected_page == "Admin Users" and role == 'admin':
+        admin_users_view()
 
 if __name__ == "__main__":
     main()

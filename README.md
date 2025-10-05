@@ -39,16 +39,41 @@ venv/Scripts/activate
 # For Mac/Linux
 source venv/bin/activate
 ```
+
 ### 3. Install Dependencies
 ```bash
-pip install requirements.txt
+pip install -r requirements.txt
 ```
-### 4. Run the App
+
+### 4. Set up your `.env` file
+```
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+### 5. Run the App
 ```bash
 streamlit run app.py
 ```
 
 Then open the link in your browser
+
+---
+
+## 🤖 AI Tips Powered by Gemini
+- Uses Google Gemini (free tier) via the official API
+- No Hugging Face account required
+- API key required (get it from https://aistudio.google.com/app/apikey)
+
+---
+
+## 📦 Requirements
+- Python 3.8+
+- See `requirements.txt` for dependencies
+
+---
+
+## 📄 License
+MIT
 
 ## 📊 Demo
 

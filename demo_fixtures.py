@@ -3,37 +3,38 @@ import datetime
 from utils.data_utils import write_user, log_expense, write_feedback
 
 def seed_demo():
-    # Create demo user
+    # demo user (activated)
     write_user({
         "username": "demo",
         "password": "demo123",
-        "purpose": "Save for laptop",
-        "goal": 500,
-        "role": "user"
+        "purpose": "Save for a laptop",
+        "goal": 400,
+        "role": "user",
+        "activated": True,
+        "activation_code": "",
+        "email": "demo@example.com"
     })
-    # Create an admin user for feedback viewing
+
+    # admin user (activated)
     write_user({
         "username": "admin",
         "password": "admin123",
-        "purpose": "Admin user",
+        "purpose": "Administrator",
         "goal": 0,
-        "role": "admin"
+        "role": "admin",
+        "activated": True,
+        "activation_code": "",
+        "email": "admin@example.com"
     })
 
+    # Add some sample expenses + feedback for demo
     today = datetime.date.today()
-    # sample expenses for demo
-    log_expense("demo", str(today), "Food", 12.50, "Lunch")
-    log_expense("demo", str(today), "Transport", 5.00, "Bus fare")
-    log_expense("demo", str(today - datetime.timedelta(days=1)), "Entertainment", 20.00, "Movie night")
-    log_expense("demo", str(today - datetime.timedelta(days=2)), "Groceries", 35.00, "Weekly shopping")
+    log_expense("demo", str(today), "Food", 12.5, "Lunch")
+    log_expense("demo", str(today), "Transport", 5.0, "Bus")
+    log_expense("demo", str(today - datetime.timedelta(days=1)), "Entertainment", 20.0, "Movie")
+    log_expense("demo", str(today - datetime.timedelta(days=3)), "Groceries", 36.0, "Groceries")
 
-    # sample feedback
-    write_feedback("demo", "Love the AI tips feature — very helpful!", 5)
-    write_feedback("demo", "Would like dark mode and export JSON option.", 4)
+    write_feedback("demo", "Love the personalized tips!", 5)
+    write_feedback("demo", "Would be nice to have dark mode.", 4)
 
-    print("Demo user: demo / demo123")
-    print("Admin user: admin / admin123")
-    print("Seeded sample expenses & feedback.")
-
-if __name__ == "__main__":
-    seed_demo()
+    print("✅ Seeded demo and admin users successfully.")
