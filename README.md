@@ -1,28 +1,35 @@
-# 💸 Spendwise – AI-Powered Smart Expense Tracker
+# 💸 SpendWise — Track Smart, Spend Wise
 
-Spendwise is a simple but powerful **personal finance app** built with **Streamlit**.  
-It lets you **log expenses, visualize spending, set goals, and get AI-powered money-saving tips** using Hugging Face’s free LLMs.
-
----
-
-## ✨ Features
-- 🔑 **Secure login & registration** (password hashing, stored in CSV)
-- 📝 **Expense logging** with category, date, amount, description
-- 📊 **Analytics dashboard**: monthly totals, goal tracking, bar & pie charts
-- 💡 **AI Tips**: Hugging Face LLM suggests money-saving strategies (with caching & fallback)
-- ⬇️ **Download CSV**: export your expenses
-- 👨‍💻 **Demo user included** (`demo/demo123`)
-- 🔒 **Security**: hashed passwords, `.env` for API keys, `.gitignore` for sensitive files
+**SpendWise** is a personal finance tracker built with **Streamlit** that helps you manage your expenses and get **AI-powered money-saving tips** based on your spending habits.
 
 ---
 
-## 🛠 Tech Stack
-- **Frontend:** [Streamlit](https://streamlit.io)  
-- **Backend:** Python (`utils/` for data + AI helpers)  
-- **AI:** Hugging Face Inference API (default: `google/flan-t5-base`)  
-- **Data:** CSV persistence (per-user expenses)  
+## 🚀 Features
+
+- 🔐 **User Login & Registration**
+- 💰 **Expense Tracking** by category and date  
+- 📊 **Visual Analytics Dashboard**
+- 🧠 **AI-Powered Smart Tips** using Cohere (Free Tier)
+- 💾 **CSV-based Data Storage** (simple and local)
+- ☁️ **Deployable on Streamlit Cloud**
 
 ---
+
+## 🧩 Project Structure
+
+SpendWise/
+│
+├── app.py 
+├── utils/
+│ ├── ai_helper.py # AI tip generation (Cohere API)
+│ ├── tips.py # Tip logic and fallback system
+│ ├── data_utils.py # Read/write CSV utilities
+│ └── init.py
+│
+├── users.csv # User data
+├── expenses/ # Individual user expense files
+├── .env # API keys and environment variables
+└── requirements.txt # Python dependencies
 
 ## 🏃 Getting Started
 
@@ -47,7 +54,7 @@ pip install -r requirements.txt
 
 ### 4. Set up your `.env` file
 ```
-GEMINI_API_KEY=your_gemini_api_key_here
+COHERE_API_KEY=your_cohere_pi_key
 ```
 
 ### 5. Run the App
@@ -58,11 +65,9 @@ streamlit run app.py
 Then open the link in your browser
 
 ---
+##🧠 AI Tips with Cohere
 
-## 🤖 AI Tips Powered by Gemini
-- Uses Google Gemini (free tier) via the official API
-- No Hugging Face account required
-- API key required (get it from https://aistudio.google.com/app/apikey)
+SpendWise uses Cohere’s Chat API (command-r-08-2024 model) to generate personalized, contextual money-saving tips based on your latest 30 days of spending.
 
 ---
 
@@ -71,28 +76,26 @@ Then open the link in your browser
 - See `requirements.txt` for dependencies
 
 ---
+## Tagline
+
+SpendWise — Track Smart, spend wise
+---
 
 ## 📄 License
 MIT
+---
 
 ## 📊 Demo
 
 A live demo will be hosted soon via Streamlit Community Cloud, so anyone can try SpendWise without installing anything.
+---
 
 ## 🙏 Acknowledgments
 
 Thanks to Decoding Data Science for giving me the opportunity to build this project during the 8-day AI Challenge!
-
-## 📌 Roadmap
-
- Add persistent storage so user data is saved between sessions
-
- Improve AI-generated advice using more personalized prompts
-
- Add expense categories and monthly summaries
-
- Deploy final version with public link
+---
 
 ## 🧑‍💻 Contributing
 
 Contributions and feedback are welcome! Open an issue or submit a pull request to suggest improvements
+---

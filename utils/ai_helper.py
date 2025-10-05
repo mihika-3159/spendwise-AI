@@ -32,7 +32,7 @@ def get_ai_suggestion(prompt: str, context: str = None, temperature: float = 0.7
 
     try:
         response = co.chat(
-            model="command-r-08-2024",  # ✅ Updated model
+            model="command-r-08-2024", 
             message=full_prompt,
             temperature=temperature,
         )

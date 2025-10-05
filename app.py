@@ -70,7 +70,6 @@ def logout_and_reload():
     st.session_state.pop('role', None)
     st.rerun()
 
-# ---- Auth pages ----
 def login_page():
     st.title("💸 Spendwise — Login")
     st.write("Smart tracking, personalized AI tips.")
@@ -81,7 +80,6 @@ def login_page():
     if st.button("Login", key="login_btn"):
         users = read_users()
 
-        # Demo shortcut
         if username == "demo" and password == "demo123":
             if username in users:
                 login_and_reload(username)
@@ -89,7 +87,6 @@ def login_page():
                 st.error("Demo account missing. Run demo_fixtures.py.")
             return
 
-        # Admin shortcut
         if username == "admin" and password == "admin123":
             if username in users:
                 login_and_reload(username)
@@ -97,7 +94,6 @@ def login_page():
                 st.error("Admin account missing. Run demo_fixtures.py.")
             return
 
-        # Normal users
         if username not in users:
             st.error("User not found. Please register.")
             return
@@ -146,7 +142,6 @@ def register_page():
             st.success("Account created. Activation code sent to your email.")
         else:
             st.warning(f"Account created but failed to send email: {msg}. Activation code: {activation_code}")
-        # set session pending activation so app redirects to activation page
         st.session_state['pending_activation'] = username
     st.rerun()
 
@@ -163,9 +158,8 @@ def activation_page():
             st.session_state.pop('pending_activation', None)
             st.rerun()
         else:
-            st.error("Invalid code. Check your email or the activation code shown in the app (for testing).")
+            st.error("Invalid code. Check your email or the activation code shown in the app.")
 
-# ---- Core app parts (post-login) ----
 def topbar(username: str):
     c1, c2 = st.columns([10,1])
     with c1:
@@ -211,7 +205,6 @@ def expenses_page(username: str):
         st.dataframe(df)
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("⬇ Export expenses CSV", data=csv, file_name=f"{username}_expenses.csv", mime="text/csv")
-        # analytics
         month_start = pd.Timestamp.today().replace(day=1).date()
         total = total_spent_month(username, month_start)
         users = read_users()
@@ -297,9 +290,7 @@ def admin_users_view():
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button("⬇ Export users CSV", data=csv, file_name="users.csv", mime="text/csv")
 
-# ---- Main behavior ----
 def main():
-    # seed demo users if no users exist (only on first run)
     if not read_users():
         try:
             import demo_fixtures
@@ -307,9 +298,7 @@ def main():
         except Exception:
             pass
 
-    # --- Auth flow ---
     if 'user' not in st.session_state and 'pending_activation' not in st.session_state:
-        # hide sidebar on login/register
         st.sidebar.empty()
         login_page()
         st.markdown("---")
@@ -322,12 +311,10 @@ def main():
         activation_page()
         return
 
-    # --- Logged in ---
     username = st.session_state['user']
     role = st.session_state.get('role', get_user_role(username))
     topbar(username)
 
-    # Sidebar only appears when logged in
     nav_items = {
         "Home": "🏠 Home",
         "Log Expense": "➕ Log Expense",
@@ -345,7 +332,6 @@ def main():
     choice = st.sidebar.radio("Navigate", list(nav_items.values()))
     selected_page = [k for k, v in nav_items.items() if v == choice][0]
 
-    # --- Routing ---
     if selected_page == "Home":
         st.title("Spendwise Dashboard")
         df = expenses_df(username)
