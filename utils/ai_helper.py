@@ -1,12 +1,9 @@
 # utils/ai_helper.py
-import os
 import logging
-from dotenv import load_dotenv
 import cohere
+import streamlit as st
 
-load_dotenv()
-
-COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+COHERE_API_KEY = st.secrets["COHERE_API_KEY"]
 
 if not COHERE_API_KEY:
     logging.warning("COHERE_API_KEY not set. AI tips will not work.")

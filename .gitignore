@@ -9,6 +9,5 @@ __pycache__/
 *.xlsx
 .cscode/
 Thumbs.db
-.streamlit/
 data/
 outputs/
